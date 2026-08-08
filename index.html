@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Найди животное</title>
+<style>
+  :root{
+    --amber:#c98a2e;
+    --amber-dark:#8a5a1c;
+    --cream:#fdf6e6;
+    --green:#5f8a4a;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;
+    min-height:100vh;
+    background:radial-gradient(ellipse at top, #241b2e, #100a17 70%);
+    font-family:'Segoe UI', Verdana, Arial, sans-serif;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+  }
+  .wrap{
+    width:100%;
+    max-width:640px;
+  }
+  .panel{
+    background:linear-gradient(180deg,#332a3f,#1c1626);
+    border-radius:20px;
+    padding:16px;
+    box-shadow:var(--shadow);
+    border:1px solid rgba(255,255,255,.06);
+  }
+  .header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    color:var(--cream);
+    padding:4px 8px 14px 8px;
+  }
+  .title{
+    font-size:14px;
+    letter-spacing:.5px;
+    opacity:.75;
+    text-transform:uppercase;
+  }
+  .prompt-box{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .prompt-label{
+    font-size:14px;
+    opacity:.7;
+  }
+  .prompt-word{
+    font-size:30px;
+    font-weight:800;
+    color:var(--amber);
+    text-shadow:0 2px 0 rgba(0,0,0,.4);
+    letter-spacing:1px;
+    min-width:150px;
+  }
+  .progress{
+    display:flex;
+    gap:8px;
+  }
+  .dot-progress{
+    width:16px;height:16px;border-radius:50%;
+    background:rgba(255,255,255,.15);
+    border:2px solid rgba(255,255,255,.25);
+    transition:all .25s;
+  }
+  .dot-progress.filled{
+    background:var(--green);
+    border-color:#a9d18e;
+    box-shadow:0 0 8px rgba(169,209,142,.8);
+  }
+  .stage{
+    position:relative;
+    width:100%;
+    aspect-ratio:1/1;
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.5);
+    background:#000;
+  }
+  .stage img{
+    display:block;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    user-select:none;
+    -webkit-user-drag:none;
+  }
+  .grid{
+    position:absolute;
+    inset:0;
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    grid-template-rows:repeat(3, 1fr);
+  }
+  .cell{
+    position:relative;
+    cursor:pointer;
+  }
+  .cell .success-tint{
+    position:absolute;
+    inset:0;
+    background:#eef3e8;
+    opacity:0;
+    transition:opacity .35s ease;
+    pointer-events:none;
+  }
+  .cell.found .success-tint{
+    opacity:1;
+  }
+  .cell .fail-tint{
+    position:absolute;
+    inset:0;
+    background:rgba(192,57,43,.30);
+    opacity:0;
+    transition:opacity .2s ease;
+    pointer-events:none;
+  }
+  .cell.shake .fail-tint{
+    opacity:1;
+    animation:failTintFade .6s ease forwards;
+  }
+  @keyframes failTintFade{
+    0%{opacity:.9;}
+    100%{opacity:0;}
+  }
+  .cell.found{
+    pointer-events:none;
+  }
+  .badge{
+    position:absolute;
+    left:50%;top:50%;
+    width:30%;height:30%;
+    min-width:44px;
+    min-height:44px;
+    transform:translate(-50%,-50%) scale(0);
+    opacity:0;
+    z-index:16;
+    pointer-events:none;
+    filter:drop-shadow(0 3px 6px rgba(0,0,0,.4));
+  }
+  .badge svg{width:100%;height:100%;display:block;}
+  .check-circle{fill:#3f9a54;stroke:#fff;stroke-width:2;}
+  .check-mark{
+    fill:none;stroke:#fff;stroke-width:4.5;
+    stroke-linecap:round;stroke-linejoin:round;
+    stroke-dasharray:26;stroke-dashoffset:26;
+  }
+  .cell.found .check-badge{
+    animation:badgePop .55s cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+  .cell.found .check-mark{
+    animation:drawMark .3s ease .22s forwards;
+  }
+  .x-circle{fill:#c0392b;stroke:#fff;stroke-width:2;}
+  .x-mark{
+    fill:none;stroke:#fff;stroke-width:4.5;
+    stroke-linecap:round;stroke-linejoin:round;
+  }
+  .cell.shake .x-badge{
+    animation:badgePop .4s cubic-bezier(.34,1.56,.64,1) forwards, badgeOut .35s ease .55s forwards;
+  }
+  @keyframes badgePop{
+    0%{transform:translate(-50%,-50%) scale(0);opacity:0;}
+    60%{transform:translate(-50%,-50%) scale(1.2);opacity:1;}
+    100%{transform:translate(-50%,-50%) scale(1);opacity:1;}
+  }
+  @keyframes badgeOut{
+    to{opacity:0;transform:translate(-50%,-50%) scale(.7);}
+  }
+  @keyframes drawMark{
+    to{stroke-dashoffset:0;}
+  }
+  .confetti-container{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    overflow:visible;
+    z-index:17;
+  }
+  .spark-flash{
+    position:absolute;
+    left:50%;top:50%;
+    width:20px;height:20px;
+    margin-left:-10px;
+    margin-top:-10px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(255,214,102,.7) 35%, transparent 70%);
+    opacity:0;
+  }
+  .spark-flash.pop{
+    animation:sparkFlash .5s ease-out forwards;
+  }
+  @keyframes sparkFlash{
+    0%{opacity:0;transform:scale(.2);}
+    25%{opacity:1;transform:scale(2.6);}
+    100%{opacity:0;transform:scale(3.6);}
+  }
+  .confetti-piece{
+    position:absolute;
+    left:50%;top:50%;
+    width:9px;height:9px;
+    margin-left:-4.5px;
+    margin-top:-4.5px;
+    border-radius:1px;
+    opacity:0;
+    box-shadow:0 0 6px 1px currentColor;
+  }
+  .confetti-piece.burst{
+    animation:confettiBurst .85s ease-out forwards;
+  }
+  @keyframes confettiBurst{
+    0%{transform:translate(0,0) rotate(0deg) scale(1.4);opacity:1;}
+    15%{transform:translate(calc(var(--dx) * .3),calc(var(--dy) * .3)) rotate(calc(var(--rot) * .3)) scale(1.6);opacity:1;}
+    100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(.4);opacity:0;}
+  }
+  .cell.shake{
+    animation:shake .5s ease;
+  }
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-9px);}
+    40%{transform:translateX(8px);}
+    60%{transform:translateX(-6px);}
+    80%{transform:translateX(4px);}
+  }
+  .marker{
+    position:absolute;
+    left:50%;top:8%;
+    width:56px;height:56px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:transform .15s ease, opacity .3s ease;
+    z-index:5;
+  }
+  .marker .ring{
+    position:absolute;
+    inset:0;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(255,214,102,.55) 0%, rgba(255,214,102,.15) 60%, transparent 75%);
+    animation:pulse 1.8s ease-in-out infinite;
+  }
+  .marker .core{
+    width:22px;height:22px;
+    border-radius:50%;
+    background:#fff2cc;
+    border:3px solid #b8860b;
+    box-shadow:0 0 10px rgba(255,235,180,.9);
+  }
+  .cell:hover .marker{transform:translate(-50%,-50%) scale(1.15);}
+  .marker{transform:translate(-50%,-50%);}
+  .cell.found .marker{
+    opacity:0;
+  }
+  @keyframes pulse{
+    0%{transform:scale(.7);opacity:.9;}
+    70%{transform:scale(1.9);opacity:0;}
+    100%{transform:scale(.7);opacity:0;}
+  }
+  .flash-word{
+    position:absolute;
+    left:50%;top:50%;
+    transform:translate(-50%,-50%) scale(.6);
+    font-size:44px;
+    font-weight:900;
+    color:#333;
+    text-shadow:0 0 20px rgba(255,255,255,.7);
+    pointer-events:none;
+    opacity:0;
+    z-index:20;
+  }
+  .flash-word.show-good{
+    animation:popGood .8s ease forwards;
+  }
+  .flash-word.show-bad{
+    animation:popBad .9s ease forwards;
+    color:#fff;
+    text-shadow:0 0 20px rgba(0,0,0,.7);
+  }
+  @keyframes popGood{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.4);color:#5f8a4a;}
+    30%{opacity:1;transform:translate(-50%,-50%) scale(1.1);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.4);}
+  }
+  @keyframes popBad{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.4);color:#ff6b5e;}
+    25%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.3);}
+  }
+  .footer{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    padding:14px 8px 4px 8px;
+    color:var(--cream);
+  }
+  .hint{
+    font-size:13px;
+    opacity:.6;
+  }
+  .btn{
+    background:linear-gradient(180deg,var(--amber),var(--amber-dark));
+    color:#fff;
+    border:none;
+    padding:10px 22px;
+    border-radius:999px;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:.5px;
+    cursor:pointer;
+    box-shadow:0 4px 10px rgba(0,0,0,.4);
+    transition:transform .12s;
+  }
+  .btn:active{transform:scale(.95);}
+  .overlay{
+    position:absolute;
+    inset:0;
+    background:rgba(10,8,4,.82);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:14px;
+    z-index:30;
+    text-align:center;
+    padding:20px;
+  }
+  .overlay.active{display:flex;}
+  .overlay h2{
+    color:var(--cream);
+    font-size:28px;
+    margin:0;
+  }
+  .overlay p{
+    color:rgba(255,255,255,.7);
+    margin:0;
+    max-width:340px;
+    font-size:15px;
+  }
+  .win h2{color:#a9d18e;}
+  .lose h2{color:#ff6b5e;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <div class="header">
+      <div>
+        <div class="title">Найди животное</div>
+        <div class="prompt-box">
+          <span class="prompt-label">Найдите:</span>
+          <span class="prompt-word" id="promptWord">—</span>
+        </div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <div class="stage" id="stage">
+      <img src="animals.webp" alt="Животные" id="animalsImg" draggable="false">
+      <div class="grid" id="grid"></div>
+      <div class="flash-word" id="flashWord"></div>
+
+      <div class="overlay win" id="winOverlay">
+        <h2>Отлично! 🎉</h2>
+        <p>Вы правильно нашли все 9 животных.</p>
+        <button class="btn" id="playAgainBtn">Играть снова</button>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="hint">Нажмите на светящуюся точку у нужного животного — появится салют и галочка. Ошибётесь — раунд начнётся заново автоматически.</div>
+      <button class="btn" id="restartBtn">Начать заново</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 3x3 grid, row-major order matching the collage image
+const ANIMALS = [
+  { id: "koala",     word: "KOALA" },
+  { id: "raccoon",   word: "RACCOON" },
+  { id: "chipmunk",  word: "CHIPMUNK" },
+  { id: "hedgehog",  word: "HEDGEHOG" },
+  { id: "meerkat",   word: "MEERKAT" },
+  { id: "panda",     word: "PANDA" },
+  { id: "guineapig", word: "GUINEA PIG" },
+  { id: "elephant",  word: "ELEPHANT" },
+  { id: "fox",       word: "FOX" }
+];
+
+const ROUND_LENGTH = 9;
+
+let sequence = [];
+let currentIndex = 0;
+let cellEls = {};
+let locked = false;
+
+const promptWordEl = document.getElementById('promptWord');
+const progressEl = document.getElementById('progress');
+const gridEl = document.getElementById('grid');
+const flashWordEl = document.getElementById('flashWord');
+const winOverlay = document.getElementById('winOverlay');
+
+function pickSequence(){
+  const shuffled = [...ANIMALS];
+  for(let i = shuffled.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i+1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, ROUND_LENGTH);
+}
+
+function buildGrid(){
+  gridEl.innerHTML = '';
+  cellEls = {};
+  ANIMALS.forEach(animal => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.innerHTML = `
+      <div class="success-tint"></div>
+      <div class="fail-tint"></div>
+      <div class="badge check-badge">
+        <svg viewBox="0 0 36 36">
+          <circle class="check-circle" cx="18" cy="18" r="16"></circle>
+          <path class="check-mark" d="M10 18l5 5 11-11"></path>
+        </svg>
+      </div>
+      <div class="badge x-badge">
+        <svg viewBox="0 0 36 36">
+          <circle class="x-circle" cx="18" cy="18" r="16"></circle>
+          <path class="x-mark" d="M12 12l12 12M24 12L12 24"></path>
+        </svg>
+      </div>
+      <div class="confetti-container"></div>
+      <div class="marker"><div class="ring"></div><div class="core"></div></div>
+    `;
+    cell.addEventListener('click', () => handleClick(animal, cell));
+    gridEl.appendChild(cell);
+    cellEls[animal.id] = cell;
+  });
+}
+
+function buildProgress(){
+  progressEl.innerHTML = '';
+  for(let i = 0; i < ROUND_LENGTH; i++){
+    const d = document.createElement('div');
+    d.className = 'dot-progress';
+    progressEl.appendChild(d);
+  }
+}
+
+function updateProgress(){
+  const dots = progressEl.children;
+  for(let i = 0; i < dots.length; i++){
+    dots[i].classList.toggle('filled', i < currentIndex);
+  }
+}
+
+function showPrompt(){
+  if(currentIndex >= sequence.length){
+    winOverlay.classList.add('active');
+    return;
+  }
+  promptWordEl.textContent = sequence[currentIndex].word;
+}
+
+function flash(text, good){
+  flashWordEl.textContent = text;
+  flashWordEl.classList.remove('show-good','show-bad');
+  void flashWordEl.offsetWidth; // restart animation
+  flashWordEl.classList.add(good ? 'show-good' : 'show-bad');
+}
+
+function spawnConfetti(container){
+  if(!container) return;
+  const colors = ['#ffd166','#06d6a0','#ef476f','#118ab2','#f78c6b','#a9d18e','#f4d35e','#ff5cad','#7bd8ff'];
+
+  const flash = document.createElement('div');
+  flash.className = 'spark-flash pop';
+  container.appendChild(flash);
+  setTimeout(() => flash.remove(), 550);
+
+  const count = 20;
+  for(let i = 0; i < count; i++){
+    const p = document.createElement('div');
+    p.className = 'confetti-piece burst';
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 55 + Math.random() * 65;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist - 14;
+    const rot = (Math.random() * 360 - 180) + 'deg';
+    p.style.setProperty('--dx', dx + 'px');
+    p.style.setProperty('--dy', dy + 'px');
+    p.style.setProperty('--rot', rot);
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    p.style.background = color;
+    p.style.color = color;
+    p.style.animationDelay = (Math.random() * 0.06) + 's';
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 1050);
+  }
+}
+
+function handleClick(animal, cell){
+  if(locked) return;
+  const target = sequence[currentIndex];
+  if(!target) return;
+
+  if(target.id === animal.id){
+    locked = true;
+    flash('Верно!', true);
+    cell.classList.add('found');
+    spawnConfetti(cell.querySelector('.confetti-container'));
+    currentIndex++;
+    updateProgress();
+    setTimeout(() => {
+      locked = false;
+      showPrompt();
+    }, 650);
+  } else {
+    locked = true;
+    cell.classList.add('shake');
+    flash('Мимо!', false);
+    setTimeout(() => {
+      startRound();
+    }, 900);
+  }
+}
+
+function startRound(){
+  locked = false;
+  currentIndex = 0;
+  sequence = pickSequence();
+  winOverlay.classList.remove('active');
+  buildGrid();
+  buildProgress();
+  updateProgress();
+  showPrompt();
+}
+
+document.getElementById('playAgainBtn').addEventListener('click', startRound);
+document.getElementById('restartBtn').addEventListener('click', startRound);
+
+startRound();
+</script>
+</body>
+</html>
